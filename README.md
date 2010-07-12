@@ -6,59 +6,88 @@ This code is a part of the [Drive/hub](http://drivehub.net) public interface for
 
 ## Usage
 
+    public class AppSensorCollector implements SensorCollectorAdapter
+    {
+        public void activate()
+        {
+            recordStore = RecordStore.openRecordStore(SENSOR_STORAGE, true);
+
+            SensorCollector sc = new SensorCollector(this);
+            // add parameter KPH with update interval 1sec, allow average calculation between intervals
+            sc.addParameter("KPH", 1000, true);
+
+            // create network push thread
+            sensorPushHandler = new SensorPushHandler(SENSOR_STORAGE, "drivehub.net/events/push", "secret_token", null);
+            sensorPushHandler.setMinimumPushSize(10);
+            sensorPushHandler.activate();
+
+            ts = System.currentTimeMillis();
+            sc.setTripStamp(ts);
+            sensorPushHandler.setActiveTrip(ts);
+        }
+
+        public void deactivate()
+        {
+            sc.deactivate();
+            sensorPushHandler.deactivate();
+        }
+        public void storeRecord(byte[] record, int size) {
+            try {
+                recordStore.addRecord(record, 0, size);
+            } catch (Exception e) {}
+        }
+        
+        // within some sensor data notification:
+        sc.recordValue("KPH", timeStamp, value);
+
+    }
 
 Network data format
 ==============================
 
-## CT01=  = (old raw) split with '=  ='
-        //   0:X - utf8 as in DataOutputStream.writeUTF - parameter name
-        // Payload:
-        //   0:8 - Timestamp epoch in milliseconds
-        //   8:8 - Sensor value
-        //   * [repeat multiple times]
+Data is pushed in a form of HTTP POST request, 200 OK response means event was added.
+4XX or 5XX response means something bad happened. Response body may contain some details.
 
-## Compact format 7F
-    PKT_CLIENT_CUSTOM_FORMAT_SENSOR     = PKT_CLIENT_HEADER|0x7F,    // Sensor dumping format
+## API to add events
 
-    0:X - utf8 as in DataOutputStream.writeUTF - parameter name
+    token=accessToken
+Access Token - a secret phrase allowing to access vehicle and push events:
+
+    date=1234456
+Date - this trip's date, in seconds from epoch
+
+    tags=sensor,mytag
+Tags - comma separate list of tags. Drivehub uses 'sensor' tag to recognize special 'trip' events
+
+    push=<base64 data stream>
+Push data - sensor data in special encoding. See next section
+
+## Push data format
+
+Drivehub uses OpenDMTP custom header 0x7D to encode raw OBD-II sensor flow
+
+    PKT_CLIENT_CUSTOM_FORMAT_SENSOR     = PKT_CLIENT_HEADER|0x7D,    // Sensor dumping format
+
+Data stream format follows (all is big endian):
+
+- Trip stamp [8 bytes]
+
+- Parameter name [utf8 as in DataOutputStream.writeUTF]
+
+- Sensor Events:
+  - either
+  - absolute timestamp event - 0xFE [1 byte]
+  - absolute timestamp in milliseconds [8 bytes]
+  - or
+  - current_interval change event - 0xFF  [1 byte]
+  - new current_interval value in milliseconds. From 1 to 65535 (~1min) [2 bytes]
+  - or
+  - New sensor timestamp value - values 0x00-0xFD. (real timestamp is calculated by ts*current_interval) [1 byte]
+  - New sensor value as a float [4 bytes]
+
+## Sample stream
     
-    X+
-
-    <<< [repeat multiple times]
-
-    0:1 - if == 0x00 then absolute timestamp event
-    1:8 - absolute timestamp in milliseconds.
-
-    0:1 - if == 0xFF then [current_interval] change event
-    1:2 - new [current_interval] in milliseconds. From 1 to 65535 (~1min)
-
-    0:1 - Timestamp increment from previous measurement in millisecond * [current_interval]
-    1:4 - Sensor value as a raw Float (4bytes) in network order
-    
-    <<< [repeat multiple times]
-
-## Compact format 7E
-    PKT_CLIENT_CUSTOM_FORMAT_SENSOR     = PKT_CLIENT_HEADER|0x7E,    // Sensor dumping format
-
-    0:8 - trip stamp
-
-    0:X - utf8 as in DataOutputStream.writeUTF - parameter name
-    
-    X+
-
-    <<< [repeat multiple times]
-
-    0:1 - if == 0xFE then absolute timestamp event
-    1:8 - absolute timestamp in milliseconds.
-
-    0:1 - if == 0xFF then [current_interval] change event
-    1:2 - new [current_interval] in milliseconds. From 1 to 65535 (~1min)
-
-    0:1 - Timestamp increment from previous measurement in millisecond * [current_interval]
-    1:4 - Sensor value as a raw Float (4bytes) in network order
-    
-    <<< [repeat multiple times]
-
+    drivehub.net/events/push?token=secret_token&date=123423&tags=sensor,mytag&push=$E07D=BASE64STREAM$E07D=BASE64STREAM$E07D=BASE64STREAM
 
 Size Estimations
 ================
