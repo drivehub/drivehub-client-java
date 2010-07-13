@@ -10,14 +10,17 @@ This code is a part of the [Drive/hub](http://drivehub.net) public interface for
     {
         public void activate()
         {
-            recordStore = RecordStore.openRecordStore(SENSOR_STORAGE, true);
+            // on J2ME:
+            recordStore = new RMSRecordStore(SENSOR_STORAGE);
+            // or on J2SE:
+            recordStore = new MemoryRecordStore();
 
-            SensorCollector sc = new SensorCollector(this);
+            SensorCollector sc = new SensorCollector(recordStore);
             // add parameter KPH with update interval 1sec, allow average calculation between intervals
             sc.addParameter("KPH", 1000, true);
 
             // create network push thread
-            sensorPushHandler = new SensorPushHandler(SENSOR_STORAGE, "drivehub.net/events/push", "secret_token", null);
+            sensorPushHandler = new SensorPushHandler(recordStore, "drivehub.net/events/push", "secret_token", null);
             sensorPushHandler.setMinimumPushSize(10);
             sensorPushHandler.activate();
 
@@ -31,12 +34,7 @@ This code is a part of the [Drive/hub](http://drivehub.net) public interface for
             sc.deactivate();
             sensorPushHandler.deactivate();
         }
-        public void storeRecord(byte[] record, int size) {
-            try {
-                recordStore.addRecord(record, 0, size);
-            } catch (Exception e) {}
-        }
-        
+
         // within some sensor data notification:
         sc.recordValue("KPH", timeStamp, value);
 
