@@ -137,6 +137,10 @@ public class SensorCollector {
 		return tripStamp;
 	}
 	
+	public void setMaxBulkSize(int newsize) {
+		this.maxBulkSize = newsize;
+	}
+	
 }
 
 /**

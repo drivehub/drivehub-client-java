@@ -4,12 +4,12 @@ import java.io.ByteArrayInputStream;
 import java.io.DataInputStream;
 import java.io.IOException;
 import java.io.OutputStream;
-import java.io.UnsupportedEncodingException;
+import java.util.Enumeration;
 import java.util.Vector;
 
 import drivehub.util.Base64;
 
-public class SensorPush {
+public abstract class SensorPush implements Runnable {
 
 	/**
 	 * Forcibly join different trips within this threshold interval
@@ -20,19 +20,56 @@ public class SensorPush {
 	 * Each record is 2Kb max, giving 300Kb of data max
 	 */
 	private static final int MAX_RECORDS_IN_PUSH = 150;
+    /**
+     * Period to initiate data push
+     */
+    private static final long PUSH_TIMEOUT = 5*60*1000;
+    
+    protected String pushURL;
+    protected ProgressLogger logger;
+    protected boolean active;
+	protected int minimumPushSize = 20;
+	protected int pushedSize = 0;
 
-	Vector collectedRecordIDs = new Vector();
-	Vector collectedRecordBytes = new Vector();
-	long collected_trip_stamp = -1;
-	long min_ts = -1;
-	long max_ts = -1;
-	
-	int pushedSize = 0;
+    private Object sync = new Object();
+    private long active_trip_stamp;
+    private SensorRecordStore recordStore;
 
-	public SensorPush()
+	private Vector collectedRecordIDs;
+	private Vector collectedRecordBytes;
+	private long collected_trip_stamp = -1;
+	private long min_ts = -1;
+	private long max_ts = -1;
+
+	public SensorPush(SensorRecordStore recordStore, String pushSite, String accessToken, ProgressLogger logger)
 	{
+		String schema = "";
+        if (pushSite.indexOf("://") == -1){
+            schema = "http://";
+        }
+        this.pushURL = schema + pushSite + "?token=" + accessToken;
+        if (logger == null){
+            logger = new ProgressLogger() {
+                public void info(String state, String details) {}
+                public void info(String state) {}
+                public void error(String state, Exception e) {}
+            };
+        }
+        this.logger = logger;
+		this.recordStore = recordStore;
 	}
-	
+
+    /**
+     * Changes active trip stamp. This is used to prevent push of the records
+     * which are still within a currently collected trip
+     * 
+     * @param ts
+     */
+    public void setActiveTrip(long ts)
+    {
+        active_trip_stamp = ts;
+    }
+
 	public void analyseRecord(int id, byte[] record) throws IOException
 	{
 		ByteArrayInputStream bis = new ByteArrayInputStream(record);
@@ -76,21 +113,7 @@ public class SensorPush {
 		collectedRecordBytes.addElement(record);
 	}
 	
-	/**
-	 * Returns IDs of the records which where chosen for the push
-	 * @return
-	 */
-	public Vector getRecordIDs()
-	{
-		return collectedRecordIDs;
-	}
-	
-	public long getTripStamp()
-	{
-		return collected_trip_stamp;
-	}
-	
-	public void pushData(OutputStream os) throws UnsupportedEncodingException, IOException
+	public void pushStream(OutputStream os) throws Exception
 	{
 		pushedSize = 0;
 		os.write("date=".getBytes("UTF-8"));
@@ -119,4 +142,109 @@ public class SensorPush {
 		return pushedSize;
 	}
 
+    public void activate()
+    {
+        if (active == false)
+        {
+            active = true;
+            new Thread(this).start();
+        }
+    }
+
+    public void deactivate()
+    {
+        active = false;
+        triggerUpload();
+    }
+    
+    /**
+     * Minimum nuber of records to push.
+     * @param minimumPushSize
+     */
+    public void setMinimumPushSize(int minimumPushSize)
+    {
+        this.minimumPushSize = minimumPushSize;
+    }
+
+    public void triggerUpload()
+    {
+        synchronized (sync) {
+            sync.notifyAll();
+        }
+    }
+
+    public void run()
+    {
+        boolean hasMoreRecords = true;
+        while(true)
+        {
+            try {
+                // Wait if no more records to push
+                if (!hasMoreRecords)
+                {
+                    synchronized (sync) {
+                        sync.wait(PUSH_TIMEOUT);
+                    }
+                }
+                if (!active){
+                    return;
+                }
+            } catch (InterruptedException e) {
+                e.printStackTrace();
+            }
+            
+            try {
+            	collectedRecordIDs = new Vector();
+            	collectedRecordBytes = new Vector();
+                Enumeration rse = this.recordStore.enumerateRecordIDs();
+
+                while(rse.hasMoreElements()){
+                    int id = ((Integer)rse.nextElement()).intValue();
+                    byte[] record = this.recordStore.getRecord(id);
+                    analyseRecord(id, record);
+                }
+                
+                // break whole collection if looks like a current trip.
+                if (active_trip_stamp == collected_trip_stamp){
+                    continue;
+                }
+                
+                if (collectedRecordIDs.size() == 0)
+                {
+                    logger.info("no records");
+                    hasMoreRecords = false;
+                    continue;
+                }
+                if (collectedRecordIDs.size() < minimumPushSize)
+                {
+                    logger.info("not enough records");
+                    hasMoreRecords = false;
+                    continue;
+                }
+
+                logger.info("pushing "+collectedRecordIDs.size()+" records");
+
+                boolean result = pushData();
+                
+                if (result){
+                    for(int i = 0; i < collectedRecordIDs.size(); i++){
+                        recordStore.deleteRecord(((Integer)collectedRecordIDs.elementAt(i)).intValue());
+                    }
+                    logger.info("pushed " + getPushedSize());
+                }else{
+                    // got a problem - delay
+                    hasMoreRecords = false;
+                }
+            } catch (Exception e) {
+                logger.error("pushing", e);
+                e.printStackTrace();
+                hasMoreRecords = false;
+            }
+            
+        }
+
+    }
+    
+    abstract public boolean pushData() throws Exception;
+	
 }

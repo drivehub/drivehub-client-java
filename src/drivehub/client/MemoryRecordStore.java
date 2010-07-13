@@ -9,12 +9,14 @@ public class MemoryRecordStore implements SensorRecordStore {
     
     @Override
     public void deleteRecord(int id) {
-        // TODO Auto-generated method stub
-
+        recordStore.setElementAt(null, id);
     }
 
     @Override
     public Enumeration enumerateRecordIDs() {
+    	while(true){
+    		if (!recordStore.removeElement(null)) break;
+    	}
         return new Enumeration() {
             int idx = 0;
             @Override
