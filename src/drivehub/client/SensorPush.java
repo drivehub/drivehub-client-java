@@ -29,7 +29,7 @@ public abstract class SensorPush implements Runnable {
     protected ProgressLogger logger;
     protected boolean active;
 	protected int minimumPushSize = 20;
-	protected int pushedSize = 0;
+	protected int pushedSize;
 
     private Object sync = new Object();
     private long active_trip_stamp;
@@ -37,10 +37,18 @@ public abstract class SensorPush implements Runnable {
 
 	private Vector collectedRecordIDs;
 	private Vector collectedRecordBytes;
-	private long collected_trip_stamp = -1;
-	private long min_ts = -1;
-	private long max_ts = -1;
+	private long collected_trip_stamp;
+	private long min_ts;
+	private long max_ts;
 
+    /**
+     * Creates the instance, but do not runs it.
+     * 
+     * @param rms RMS name to be used to scan over
+     * @param pushSite push site url (drivehub.us/events/push)
+     * @param accessToken vehicle's access token
+     * @param logger log interface to give a progress information
+     */
 	public SensorPush(SensorRecordStore recordStore, String pushSite, String accessToken, ProgressLogger logger)
 	{
 		String schema = "";
@@ -196,6 +204,9 @@ public abstract class SensorPush implements Runnable {
             try {
             	collectedRecordIDs = new Vector();
             	collectedRecordBytes = new Vector();
+            	collected_trip_stamp = -1;
+            	min_ts = -1;
+            	max_ts = -1;
                 Enumeration rse = this.recordStore.enumerateRecordIDs();
 
                 while(rse.hasMoreElements()){

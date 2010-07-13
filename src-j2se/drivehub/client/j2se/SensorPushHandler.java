@@ -23,14 +23,6 @@ import drivehub.client.SensorRecordStore;
  */
 public class SensorPushHandler extends SensorPush  {
 
-    /**
-     * Creates the instance, but do not runs it.
-     * 
-     * @param rms RMS name to be used to scan over
-     * @param pushSite push site url (drivehub.us/events/push)
-     * @param accessToken vehicle's access token
-     * @param logger log interface to give a progress information
-     */
     public SensorPushHandler(SensorRecordStore recordStore, String pushSite, String accessToken, ProgressLogger logger)
     {
     	super(recordStore, pushSite, accessToken, logger);
