@@ -15,7 +15,7 @@ public class SensorCollector {
 	private int maxBulkSize = 2*1024;
 
 	Hashtable paramStorage = new Hashtable();
-	private SensorCollectorAdapter adapter;
+	private SensorRecordStore adapter;
 
 	/**
 	 * Stamp for the current trip. Used to distinguish records from different trips
@@ -25,7 +25,7 @@ public class SensorCollector {
 	/**
 	 * @param adapter is an application level code which stores to records into some persistent storage
 	 */
-	public SensorCollector(SensorCollectorAdapter adapter)
+	public SensorCollector(SensorRecordStore adapter)
 	{
 		this.adapter = adapter;
 	}
@@ -54,7 +54,9 @@ public class SensorCollector {
 		{
 			String name = (String)e.nextElement();
 			SensorData sd = (SensorData)paramStorage.get(name);
-			adapter.storeRecord(sd.list_bos.getBuffer(), sd.list_bos.size());
+			if (sd.list_bos != null){
+			    adapter.storeRecord(sd.list_bos.getBuffer(), sd.list_bos.size());
+			}
 		}
 		paramStorage.clear();
 	}
