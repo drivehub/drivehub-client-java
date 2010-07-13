@@ -1,6 +1,6 @@
 package drivehub.client.j2me;
 
-mport java.io.InputStream;
+import java.io.InputStream;
 import java.io.OutputStream;
 
 import java.util.Vector;

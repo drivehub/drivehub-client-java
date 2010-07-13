@@ -3,51 +3,76 @@ package drivehub.client.j2me;
 import java.util.Enumeration;
 
 import drivehub.client.SensorRecordStore;
+import javax.microedition.rms.RecordStore;
+import javax.microedition.rms.RecordEnumeration;
 
 public class RMSRecordStore implements SensorRecordStore {
 
 	
 	private String rms;
-	RecordStore rs = RecordStore.openRecordStore(rms, false);
+	RecordStore rs;
 
-	public RMSRecordStore(String rms){
+	public RMSRecordStore(String rms) {
 		this.rms = rms;
-
-/*	try{
-}catch(InvalidRecordIDException e){
-}
-byte[] record = rs.getRecord(id);
-*/
-		
+		try{
+			rs = RecordStore.openRecordStore(rms, false);
+		}catch(Exception e){
+			throw new RuntimeException(e.getMessage());
+		}
 	}
-	@Override
+	
 	public void deleteRecord(int id) {
-		rs.deleteRecord(id);
+		try{
+			rs.deleteRecord(id);
+		}catch(Exception e){
+			throw new RuntimeException(e.getMessage());
+		}
 	}
 
-	@Override
 	public Enumeration enumerateRecordIDs() {
 		return new Enumeration() {
-			RecordEnumeration rse = rs.enumerateRecords(null, null, false);
 			
-			@Override
+			RecordEnumeration rse;
+			
 			public boolean hasMoreElements() {
-				return rse.hasMoreElements();
+				try{
+					if (rse == null) rse = rs.enumerateRecords(null, null, false);
+					return rse.hasNextElement();
+				}catch(Exception e){
+					throw new RuntimeException(e.getMessage());
+				}
 			}
-			@Override
 			public Object nextElement() {
-				return rse.nextRecordId();
+				try{
+					if (rse == null) rse = rs.enumerateRecords(null, null, false);
+					return new Integer(rse.nextRecordId());
+				}catch(Exception e){
+					throw new RuntimeException(e.getMessage());
+				}
 			}
 		};
 	}
-	@Override
+
 	public byte[] getRecord(int id) {
-		return rs.getRecord(id);
+		try{
+			return rs.getRecord(id);
+		}catch(Exception e){
+			throw new RuntimeException(e.getMessage());
+		}
 	}
 
-	@Override
 	public void storeRecord(byte[] record, int size) {
-		rs.addRecord(record, 0, size);
+		try{
+			rs.addRecord(record, 0, size);
+		}catch(Exception e){
+			throw new RuntimeException(e.getMessage());
+		}
 	}
-
+	public void closeRecordStore() {
+		try{
+			rs.closeRecordStore();
+		}catch(Exception e){
+			throw new RuntimeException(e.getMessage());
+		}
+	}
 }
