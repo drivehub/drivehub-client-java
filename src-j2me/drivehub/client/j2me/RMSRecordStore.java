@@ -53,6 +53,14 @@ public class RMSRecordStore implements SensorRecordStore {
 		};
 	}
 
+    public int getRecordsCount() {
+        try{
+            return rs.getNumRecords();
+        }catch(Exception e){
+			throw new RuntimeException(e.getMessage());
+        }
+    }
+
 	public byte[] getRecord(int id) {
 		try{
 			return rs.getRecord(id);

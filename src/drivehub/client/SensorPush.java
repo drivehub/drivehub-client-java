@@ -184,6 +184,7 @@ public abstract class SensorPush implements Runnable {
     public void run()
     {
         boolean hasMoreRecords = true;
+        boolean firstPush = true;
         while(true)
         {
             try {
@@ -201,6 +202,13 @@ public abstract class SensorPush implements Runnable {
                 e.printStackTrace();
             }
             
+            if (this.recordStore.getRecordsCount() < minimumPushSize && firstPush)
+            {
+                logger.info("not enough records");
+                hasMoreRecords = false;
+                firstPush = false;
+                continue;
+            }
             try {
             	collectedRecordIDs = new Vector();
             	collectedRecordBytes = new Vector();
@@ -223,12 +231,6 @@ public abstract class SensorPush implements Runnable {
                 if (collectedRecordIDs.size() == 0)
                 {
                     logger.info("no records");
-                    hasMoreRecords = false;
-                    continue;
-                }
-                if (collectedRecordIDs.size() < minimumPushSize)
-                {
-                    logger.info("not enough records");
                     hasMoreRecords = false;
                     continue;
                 }

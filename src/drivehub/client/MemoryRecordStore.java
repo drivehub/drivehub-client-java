@@ -33,6 +33,10 @@ public class MemoryRecordStore implements SensorRecordStore {
             }
         };
     }
+    @Override
+    public int getRecordsCount(){
+        return recordStore.size();
+    }
 
     @Override
     public byte[] getRecord(int id) {

@@ -18,6 +18,11 @@ public interface SensorRecordStore {
      * @return
      */
     public Enumeration enumerateRecordIDs();
+
+    /**
+     * Returns total number of records in the store
+     */
+    public int getRecordsCount();
     
     /**
      * Each object in the enumeration is Integer record ID.
